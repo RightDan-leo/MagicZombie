@@ -1,0 +1,17 @@
+:root {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #0b0e18;
+  color: #f1f4ff;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #0b0e18;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+}
