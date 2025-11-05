@@ -39,6 +39,10 @@ const ENEMY_LIMIT = 60
 const PLAYER_INVULNERABLE_TIME = 600
 
 export default class PlayScene extends Phaser.Scene {
+  constructor() {
+    super('PlayScene')
+  }
+
   private player!: Phaser.Physics.Arcade.Sprite
 
   private playerState!: PlayerState
