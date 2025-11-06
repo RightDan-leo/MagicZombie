@@ -5,16 +5,8 @@ import { EnemyDefinitions } from '../data/enemies'
 import { StageDefinitions } from '../data/stages'
 import { WeaponDefinitions } from '../data/weapons'
 import type { EnemyId, StageDefinition, WeaponId } from '../data/types'
-
-interface PlayerState {
-  maxHp: number
-  hp: number
-  speed: number
-  level: number
-  exp: number
-  nextExp: number
-  alive: boolean
-}
+import { applyExperienceInPlace, createInitialPlayerState } from '../logic/playerProgression'
+import type { PlayerState } from '../types/player'
 
 type EnemySprite = Phaser.Physics.Arcade.Sprite & {
   enemyId: EnemyId
@@ -78,7 +70,7 @@ export default class PlayScene extends Phaser.Scene {
   private stageBanner?: Phaser.GameObjects.Text
 
   create() {
-    this.playerState = this.createInitialPlayerState()
+    this.playerState = createInitialPlayerState()
 
     const keyboard = this.input.keyboard
     if (!keyboard) {
@@ -171,18 +163,6 @@ export default class PlayScene extends Phaser.Scene {
 
     this.elapsedTime += delta / 1000
     this.updateHud()
-  }
-
-  private createInitialPlayerState(): PlayerState {
-    return {
-      maxHp: 100,
-      hp: 100,
-      speed: 220,
-      level: 1,
-      exp: 0,
-      nextExp: 80,
-      alive: true,
-    }
   }
 
   private startStage(stage: StageDefinition) {
@@ -654,15 +634,7 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   private addExperience(amount: number) {
-    this.playerState.exp += amount
-
-    while (this.playerState.exp >= this.playerState.nextExp) {
-      this.playerState.exp -= this.playerState.nextExp
-      this.playerState.level += 1
-      this.playerState.maxHp += 5
-      this.playerState.hp += 5
-      this.playerState.nextExp = 80 + (this.playerState.level - 1) * 40
-    }
+    applyExperienceInPlace(this.playerState, amount)
   }
 
   private onEnemyTouchesPlayer(enemy: EnemySprite) {
@@ -724,7 +696,7 @@ export default class PlayScene extends Phaser.Scene {
 
   private restartStage() {
     this.hideOverlay()
-    this.playerState = this.createInitialPlayerState()
+    this.playerState = createInitialPlayerState()
     this.startStage(StageDefinitions[this.stageIndex])
   }
 
