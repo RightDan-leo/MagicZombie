@@ -30,3 +30,14 @@ A Phaser-based game project. This repository includes gameplay logic, spawn rule
 
 - Enemy spawn rules are decoupled into `src/game/logic/spawnRules.ts` and integrated into `PlayScene`.
 - Unit tests cover player progression and spawn rule edge cases.
+- GitHub Pages deployment builds with `VITE_BASE_PATH=/MagicZombie/` via `.github/workflows/deploy.yml`.
+
+## Deployment
+
+- Public URL: `https://rightdan-leo.github.io/MagicZombie/`
+- Deploy pipeline: push to `master` (or trigger manually) to run `.github/workflows/deploy.yml` which builds and publishes `dist` to GitHub Pages.
+- Manual build for Pages:
+  ```bash
+  VITE_BASE_PATH=/MagicZombie/ npm run build
+  ```
+- Local preview of hosted path: `npm run preview -- --host 0.0.0.0 --port 4173` then open `http://localhost:4173/MagicZombie/`.

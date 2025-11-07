@@ -12,6 +12,7 @@ This PR extracts enemy spawn logic into a dedicated module (`src/game/logic/spaw
   - Use `pickEnemyId` and `resolveBatchCount` in `PlayScene.spawnWave` for selection and batching.
   - Expose and reuse typed RNG helpers: `RandomFloatFn`, `RandomIntFn`; annotate usage in `PlayScene`.
   - Publish lightweight `window.__MAGICZOMBIE_DEBUG__` snapshot inside `PlayScene.update` for E2E assertions (player position, HUD text, score, etc.).
+  - Add `vite.config.ts` with configurable `base` (driven by `VITE_BASE_PATH`) so GitHub Pages serves assets under `/MagicZombie/`.
 
 - Tests
   - Add `tests/unit/spawnRules.test.ts` covering:
@@ -26,6 +27,7 @@ This PR extracts enemy spawn logic into a dedicated module (`src/game/logic/spaw
     - Negative EXP clamping at 0
     - `applyDamage` non-mutation and HP lower bound
   - Add Playwright smoke test (`tests/e2e/smoke.spec.ts`) to ensure the game boots without console errors, renders the main canvas, updates HUD text, and responds to movement input.
+  - Add GitHub Actions deploy workflow (`.github/workflows/deploy.yml`) to build with `VITE_BASE_PATH=/MagicZombie/` and publish `dist` to GitHub Pages.
 
 ## Rationale
 
@@ -42,6 +44,7 @@ Separating spawn logic clarifies responsibilities: player progression focuses on
 - Tests: `npm test` passes (2 suites, 30 tests).
 - E2E smoke: `npm run test:e2e` passes (1 Playwright test).
 - CI: GitHub Actions workflow (`.github/workflows/ci.yml`) runs unit and Playwright tests on push/PR.
+- Deploy: Workflow `.github/workflows/deploy.yml` builds and uploads GitHub Pages artifact (run on push to `master`).
 
 ## Manual Acceptance Checklist
 
@@ -72,3 +75,4 @@ Separating spawn logic clarifies responsibilities: player progression focuses on
 - [x] Add Playwright smoke test and document workflow
 - [x] Expose debug snapshot + enhance Playwright assertions
 - [x] Add CI workflow running unit + E2E tests
+- [x] Configure Vite base + GitHub Pages deploy workflow
