@@ -20,6 +20,7 @@ const config = {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/e2e/'],
 }
 
 export default config

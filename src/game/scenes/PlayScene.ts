@@ -6,6 +6,8 @@ import { StageDefinitions } from '../data/stages'
 import { WeaponDefinitions } from '../data/weapons'
 import type { EnemyId, StageDefinition, WeaponId } from '../data/types'
 import { applyExperienceInPlace, createInitialPlayerState } from '../logic/playerProgression'
+import { getSpawnInterval, pickEnemyId, resolveBatchCount } from '../logic/spawnRules'
+import type { RandomFloatFn, RandomIntFn } from '../logic/spawnRules'
 import type { PlayerState } from '../types/player'
 
 type EnemySprite = Phaser.Physics.Arcade.Sprite & {
@@ -25,6 +27,16 @@ type MovementKeys = {
   down: Phaser.Input.Keyboard.Key
   left: Phaser.Input.Keyboard.Key
   right: Phaser.Input.Keyboard.Key
+}
+
+type DebugWindow = Window & {
+  __MAGICZOMBIE_DEBUG__?: {
+    stageId: number | null
+    score: number
+    player: { x: number; y: number }
+    enemyCount: number
+    hudText: string
+  }
 }
 
 const ENEMY_LIMIT = 60
@@ -163,6 +175,7 @@ export default class PlayScene extends Phaser.Scene {
 
     this.elapsedTime += delta / 1000
     this.updateHud()
+    this.publishDebugInfo()
   }
 
   private startStage(stage: StageDefinition) {
@@ -187,11 +200,6 @@ export default class PlayScene extends Phaser.Scene {
     this.showStageBanner(stage)
   }
 
-  private getSpawnInterval() {
-    const progress = Phaser.Math.Clamp(this.score / this.stage.targetScore, 0, 1)
-    return Phaser.Math.Linear(this.stage.baseSpawnInterval, this.stage.minSpawnInterval, progress)
-  }
-
   private scheduleNextSpawn(useBaseDelay = false) {
     this.spawnTimer?.remove(false)
 
@@ -200,7 +208,7 @@ export default class PlayScene extends Phaser.Scene {
       return
     }
 
-    const delay = useBaseDelay ? this.stage.baseSpawnInterval : this.getSpawnInterval()
+    const delay = useBaseDelay ? this.stage.baseSpawnInterval : getSpawnInterval(this.stage, this.score)
 
     this.spawnTimer = this.time.addEvent({
       delay,
@@ -318,49 +326,24 @@ export default class PlayScene extends Phaser.Scene {
       return
     }
 
-    const enemyId = this.pickEnemyId()
-    const rule = this.stage.spawnTable.find((entry) => entry.enemyId === enemyId)
+    const existingEnemyIds = this.enemies
+      .getChildren()
+      .map((enemy) => (enemy as EnemySprite).enemyId)
 
-    if (!rule) {
+    const randomFloat: RandomFloatFn = (max) => Phaser.Math.FloatBetween(0, max)
+    const enemyId = pickEnemyId(this.stage, existingEnemyIds, randomFloat)
+
+    if (!enemyId) {
       return
     }
 
-    const existingRabbit = this.enemies
-      .getChildren()
-      .some((enemy) => (enemy as EnemySprite).enemyId === 'rewardRabbit')
-
-    const batchCount = enemyId === 'rewardRabbit' ? (existingRabbit ? 0 : 1) : Phaser.Math.Between(rule.minBatch, rule.maxBatch)
+    const rule = this.stage.spawnTable.find((entry) => entry.enemyId === enemyId)
+    const randomInt: RandomIntFn = (min, max) => Phaser.Math.Between(min, max)
+    const batchCount = resolveBatchCount(enemyId, rule, existingEnemyIds, randomInt)
 
     for (let i = 0; i < batchCount; i += 1) {
       this.spawnEnemy(enemyId)
     }
-  }
-
-  private pickEnemyId(): EnemyId {
-    const unlocked = this.stage.spawnTable.filter((entry) => {
-      const definition = EnemyDefinitions[entry.enemyId]
-      if (entry.enemyId === 'rewardRabbit') {
-        const rabbitExists = this.enemies
-          .getChildren()
-          .some((enemy) => (enemy as EnemySprite).enemyId === 'rewardRabbit')
-        if (rabbitExists) {
-          return false
-        }
-      }
-      return definition.unlockStage <= this.stage.id
-    })
-
-    const totalWeight = unlocked.reduce((acc, entry) => acc + entry.weight, 0)
-    let roll = Phaser.Math.FloatBetween(0, totalWeight)
-
-    for (const entry of unlocked) {
-      roll -= entry.weight
-      if (roll <= 0) {
-        return entry.enemyId
-      }
-    }
-
-    return unlocked[0]?.enemyId ?? 'zombieSmall'
   }
 
   private spawnEnemy(enemyId: EnemyId) {
@@ -843,5 +826,19 @@ export default class PlayScene extends Phaser.Scene {
         `武器 ${weapon.label} | 伤害 ${weapon.baseDamage} | 攻速 ${weapon.attacksPerSecond.toFixed(1)}/s`,
     )
   }
-}
 
+  private publishDebugInfo() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const debugWindow = window as DebugWindow
+    debugWindow.__MAGICZOMBIE_DEBUG__ = {
+      stageId: this.stage?.id ?? null,
+      score: this.score,
+      player: { x: this.player.x, y: this.player.y },
+      enemyCount: this.enemies.countActive(true),
+      hudText: this.hudText?.text ?? '',
+    }
+  }
+}

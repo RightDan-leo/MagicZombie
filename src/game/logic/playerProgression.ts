@@ -67,4 +67,3 @@ export function applyDamage<T extends PlayerProgressState>(state: T, amount: num
   nextState.hp = Math.max(0, nextState.hp - amount)
   return nextState
 }
-
