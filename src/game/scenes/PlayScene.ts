@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 
+import { queueProgressSave } from '../../account/progress'
+import type { SavedProgress } from '../../account/types'
 import { GAME_HEIGHT, GAME_WIDTH } from '../config'
 import { EnemyDefinitions } from '../data/enemies'
 import { StageDefinitions } from '../data/stages'
@@ -81,8 +83,24 @@ export default class PlayScene extends Phaser.Scene {
 
   private stageBanner?: Phaser.GameObjects.Text
 
+  private resumeProgress?: SavedProgress
+
+  init(data: { progress?: SavedProgress | null } = {}) {
+    this.resumeProgress = data.progress ?? undefined
+  }
+
   create() {
+    const hasResumeProgress = Boolean(this.resumeProgress)
     this.playerState = createInitialPlayerState()
+
+    if (this.resumeProgress) {
+      this.restoreProgress(this.resumeProgress)
+    } else {
+      this.score = 0
+      this.stageIndex = 0
+      this.equippedWeapon = 'lightningChain'
+    }
+    this.resumeProgress = undefined
 
     const keyboard = this.input.keyboard
     if (!keyboard) {
@@ -161,7 +179,7 @@ export default class PlayScene extends Phaser.Scene {
       }
     })
 
-    this.startStage(StageDefinitions[this.stageIndex])
+    this.startStage(StageDefinitions[this.stageIndex], { resume: hasResumeProgress })
   }
 
   update(_time: number, delta: number) {
@@ -178,9 +196,28 @@ export default class PlayScene extends Phaser.Scene {
     this.publishDebugInfo()
   }
 
-  private startStage(stage: StageDefinition) {
+  private restoreProgress(progress: SavedProgress) {
+    this.stageIndex = Phaser.Math.Clamp(progress.stageIndex, 0, StageDefinitions.length - 1)
+    this.playerState = { ...progress.playerState }
+    this.score = Math.max(0, Math.floor(progress.score))
+    this.equippedWeapon = progress.equippedWeapon
+  }
+
+  private persistProgress(immediate = false) {
+    queueProgressSave(
+      {
+        stageIndex: this.stageIndex,
+        score: this.score,
+        equippedWeapon: this.equippedWeapon,
+        playerState: { ...this.playerState },
+      },
+      { immediate },
+    )
+  }
+
+  private startStage(stage: StageDefinition, options?: { resume?: boolean }) {
+    const resume = options?.resume ?? false
     this.stage = stage
-    this.score = 0
     this.elapsedTime = 0
     this.stageCleared = false
     this.playerHitCooldown = 0
@@ -188,8 +225,15 @@ export default class PlayScene extends Phaser.Scene {
     this.enemies.clear(true, true)
     this.projectiles.clear(true, true)
 
-    this.playerState.hp = this.playerState.maxHp
-    this.playerState.alive = true
+    if (!resume) {
+      this.score = 0
+      this.playerState.hp = this.playerState.maxHp
+      this.playerState.alive = true
+    } else {
+      this.score = Math.max(0, this.score)
+      this.playerState.hp = Phaser.Math.Clamp(this.playerState.hp, 0, this.playerState.maxHp)
+      this.playerState.alive = this.playerState.hp > 0 && this.playerState.alive
+    }
     this.player.clearTint()
     this.player.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2)
     this.player.body?.reset(GAME_WIDTH / 2, GAME_HEIGHT / 2)
@@ -197,7 +241,14 @@ export default class PlayScene extends Phaser.Scene {
     this.scheduleNextSpawn(true)
     this.setupAttackTimer()
 
+    if (resume && !this.playerState.alive) {
+      this.showOverlayMessage('你阵亡了', '按 R 重新开始当前关卡')
+    } else {
+      this.hideOverlay()
+    }
+
     this.showStageBanner(stage)
+    this.persistProgress(true)
   }
 
   private scheduleNextSpawn(useBaseDelay = false) {
@@ -522,41 +573,37 @@ export default class PlayScene extends Phaser.Scene {
       .map((entry) => entry.enemy)
   }
 
-  private drawLightning(startX: number, startY: number, endX: number, endY: number) {
+  private drawLightning(sourceX: number, sourceY: number, targetX: number, targetY: number) {
     const graphics = this.add.graphics()
     graphics.setDepth(4)
-    graphics.lineStyle(3, 0xe6ff69, 0.9)
+    graphics.lineStyle(3, 0x8ce2ff, 0.95)
 
-    const jaggedPoints = 4
-    const points = [{ x: startX, y: startY }]
-    for (let i = 1; i < jaggedPoints; i += 1) {
-      const t = i / jaggedPoints
-      const point = Phaser.Math.Interpolation.Linear([startX, endX], t)
-      const pointY = Phaser.Math.Interpolation.Linear([startY, endY], t)
-      const offsetX = Phaser.Math.Between(-12, 12)
-      const offsetY = Phaser.Math.Between(-12, 12)
-      points.push({ x: point + offsetX, y: pointY + offsetY })
+    const points: Phaser.Math.Vector2[] = []
+    const segmentCount = 12
+    for (let i = 0; i <= segmentCount; i += 1) {
+      const t = i / segmentCount
+      const x = Phaser.Math.Linear(sourceX, targetX, t)
+      const y = Phaser.Math.Linear(sourceY, targetY, t)
+      const offset = (Math.random() - 0.5) * 18
+      points.push(new Phaser.Math.Vector2(x + offset, y + offset))
     }
-    points.push({ x: endX, y: endY })
 
     graphics.beginPath()
-    graphics.moveTo(points[0].x, points[0].y)
-    for (let i = 1; i < points.length; i += 1) {
-      graphics.lineTo(points[i].x, points[i].y)
-    }
+    graphics.moveTo(sourceX, sourceY)
+    points.forEach((point) => graphics.lineTo(point.x, point.y))
     graphics.strokePath()
 
     this.tweens.add({
       targets: graphics,
       alpha: 0,
-      duration: 120,
+      duration: 160,
       onComplete: () => graphics.destroy(),
     })
   }
 
   private drawFlamethrowerCone(direction: Phaser.Math.Vector2, range: number) {
     const graphics = this.add.graphics()
-    graphics.setDepth(3)
+    graphics.setDepth(4)
     graphics.fillStyle(0xff8f4f, 0.45)
 
     const originX = this.player.x
@@ -611,6 +658,7 @@ export default class PlayScene extends Phaser.Scene {
 
   private addScore(amount: number) {
     this.score += amount
+    this.persistProgress()
     if (this.score >= this.stage.targetScore && !this.stageCleared) {
       this.handleStageCleared()
     }
@@ -618,6 +666,7 @@ export default class PlayScene extends Phaser.Scene {
 
   private addExperience(amount: number) {
     applyExperienceInPlace(this.playerState, amount)
+    this.persistProgress()
   }
 
   private onEnemyTouchesPlayer(enemy: EnemySprite) {
@@ -648,6 +697,7 @@ export default class PlayScene extends Phaser.Scene {
 
   private applyDamageToPlayer(amount: number) {
     this.playerState.hp = Math.max(0, this.playerState.hp - amount)
+    this.persistProgress()
 
     if (this.playerState.hp <= 0) {
       this.handlePlayerDeath()
@@ -665,6 +715,7 @@ export default class PlayScene extends Phaser.Scene {
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
 
+    this.persistProgress(true)
     this.showOverlayMessage('你阵亡了', '按 R 重新开始当前关卡')
   }
 
@@ -674,6 +725,7 @@ export default class PlayScene extends Phaser.Scene {
     this.spawnTimer = undefined
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
+    this.persistProgress(true)
     this.showOverlayMessage(`关卡 ${this.stage.id} 完成`, '按 N 进入下一关')
   }
 
@@ -759,6 +811,7 @@ export default class PlayScene extends Phaser.Scene {
     }
 
     this.equippedWeapon = id
+    this.persistProgress()
 
     if (this.playerState.alive && !this.stageCleared) {
       this.setupAttackTimer()
