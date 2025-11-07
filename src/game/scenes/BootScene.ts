@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { getSession } from '../../account/sessionStore'
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -7,7 +8,8 @@ export default class BootScene extends Phaser.Scene {
 
   create() {
     this.createTextures()
-    this.scene.start('PlayScene')
+    const progress = getSession()?.progress ?? null
+    this.scene.start('PlayScene', { progress })
   }
 
   private createTextures() {
@@ -66,4 +68,3 @@ export default class BootScene extends Phaser.Scene {
     graphics.destroy()
   }
 }
-
