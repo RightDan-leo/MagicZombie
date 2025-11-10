@@ -8,6 +8,7 @@ import type { EnemyId, StageDefinition, WeaponId } from '../data/types'
 import { applyExperienceInPlace, createInitialPlayerState } from '../logic/playerProgression'
 import { getSpawnInterval, pickEnemyId, resolveBatchCount } from '../logic/spawnRules'
 import type { RandomFloatFn, RandomIntFn } from '../logic/spawnRules'
+import { profileManager } from '../../state/profileManager'
 import type { PlayerState } from '../types/player'
 
 type EnemySprite = Phaser.Physics.Arcade.Sprite & {
@@ -83,6 +84,7 @@ export default class PlayScene extends Phaser.Scene {
 
   create() {
     this.playerState = createInitialPlayerState()
+    this.populateStateFromProfile()
 
     const keyboard = this.input.keyboard
     if (!keyboard) {
@@ -162,6 +164,17 @@ export default class PlayScene extends Phaser.Scene {
     })
 
     this.startStage(StageDefinitions[this.stageIndex])
+  }
+
+  private populateStateFromProfile() {
+    const profile = profileManager.getProfile()
+    if (!profile) {
+      return
+    }
+
+    this.stageIndex = Phaser.Math.Clamp(profile.stageIndex, 0, StageDefinitions.length - 1)
+    Object.assign(this.playerState, profile.playerState)
+    this.playerState.hp = Phaser.Math.Clamp(this.playerState.hp, 0, this.playerState.maxHp)
   }
 
   update(_time: number, delta: number) {
@@ -825,6 +838,12 @@ export default class PlayScene extends Phaser.Scene {
         `时间 ${timeText}s | 敌人 ${enemyCount}/${ENEMY_LIMIT}\n` +
         `武器 ${weapon.label} | 伤害 ${weapon.baseDamage} | 攻速 ${weapon.attacksPerSecond.toFixed(1)}/s`,
     )
+
+    profileManager.updateSnapshot({
+      stageIndex: this.stageIndex,
+      score: this.score,
+      playerState: this.playerState,
+    })
   }
 
   private publishDebugInfo() {

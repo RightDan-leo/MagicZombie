@@ -15,6 +15,7 @@
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@types/jest": "^29.5.12",
+    "@types/node": "^24.10.0",
     "cross-env": "^7.0.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
@@ -23,6 +24,7 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "firebase": "^12.5.0",
     "phaser": "^3.90.0"
   }
 }

@@ -23,7 +23,7 @@ test.describe('Game smoke test', () => {
       }
     })
 
-    await page.goto('/')
+    await page.goto('/?profileId=e2e-smoke')
     const canvas = page.locator('#app canvas')
     await expect(canvas).toHaveCount(1)
 

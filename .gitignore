@@ -30,7 +30,18 @@ dist-ssr
 *.sln
 *.sw?
 
+# Env & secrets
+.env
+.env.*
+!.env.example
+firebase-debug.log
+firebase.json
+
 # Test artifacts
 coverage/
 playwright-report/
 test-results/
+
+# Local SSH keys (do not commit)
+sshKey
+sshKey.pub

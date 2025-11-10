@@ -13,6 +13,7 @@ This PR extracts enemy spawn logic into a dedicated module (`src/game/logic/spaw
   - Expose and reuse typed RNG helpers: `RandomFloatFn`, `RandomIntFn`; annotate usage in `PlayScene`.
   - Publish lightweight `window.__MAGICZOMBIE_DEBUG__` snapshot inside `PlayScene.update` for E2E assertions (player position, HUD text, score, etc.).
   - Add `vite.config.ts` with configurable `base` (driven by `VITE_BASE_PATH`) so GitHub Pages serves assets under `/MagicZombie/`.
+  - 新增玩家存档系统：`src/ui/profileGate.ts` 收集玩家 ID，`profileManager` + Firestore/localStorage 绑定玩家进度，可跨设备同步，并提供“切换玩家”按钮与 `?resetProfile=1` 强制重置入口。
 
 - Tests
   - Add `tests/unit/spawnRules.test.ts` covering:
@@ -28,6 +29,7 @@ This PR extracts enemy spawn logic into a dedicated module (`src/game/logic/spaw
     - `applyDamage` non-mutation and HP lower bound
   - Add Playwright smoke test (`tests/e2e/smoke.spec.ts`) to ensure the game boots without console errors, renders the main canvas, updates HUD text, and responds to movement input.
   - Add GitHub Actions deploy workflow (`.github/workflows/deploy.yml`) to build with `VITE_BASE_PATH=/MagicZombie/` and publish `dist` to GitHub Pages.
+  - 新增 `tests/unit/profileStorage.test.ts` 覆盖玩家 ID 规范化逻辑，并更新 E2E 测试通过 `/?profileId=e2e-smoke` 自动登录。
 
 ## Rationale
 
@@ -45,6 +47,7 @@ Separating spawn logic clarifies responsibilities: player progression focuses on
 - E2E smoke: `npm run test:e2e` passes (1 Playwright test).
 - CI: GitHub Actions workflow (`.github/workflows/ci.yml`) runs unit and Playwright tests on push/PR.
 - Deploy: Workflow `.github/workflows/deploy.yml` builds and uploads GitHub Pages artifact (run on push to `master`).
+- Player profile: 通过输入玩家 ID 建档，若配置 Firebase，可跨设备访问同一进度；未配置时回退到本地存档。
 
 ## Manual Acceptance Checklist
 
@@ -76,3 +79,4 @@ Separating spawn logic clarifies responsibilities: player progression focuses on
 - [x] Expose debug snapshot + enhance Playwright assertions
 - [x] Add CI workflow running unit + E2E tests
 - [x] Configure Vite base + GitHub Pages deploy workflow
+- [x] Implement cloud/local profile storage with login gate

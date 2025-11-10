@@ -15,3 +15,96 @@ body {
   width: 100vw;
   height: 100vh;
 }
+
+.profile-gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(3, 5, 12, 0.9);
+  z-index: 20;
+}
+
+.profile-gate__panel {
+  width: 100%;
+  max-width: 420px;
+  background: #151b2d;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 24px;
+}
+
+.profile-gate__panel h2 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+}
+
+.profile-gate__panel p {
+  margin: 0 0 16px;
+  color: #cfd8ff;
+}
+
+.profile-gate__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-gate__form input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #101528;
+  color: #f1f4ff;
+  font-size: 1rem;
+}
+
+.profile-gate__form input:focus {
+  outline: 2px solid #6a9bff;
+}
+
+.profile-gate__form button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #6a9bff, #816bff);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.profile-gate__form button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-gate__error {
+  min-height: 20px;
+  color: #ff8a80;
+  margin: 0;
+}
+
+.profile-switch {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 15;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(15, 18, 32, 0.8);
+  color: #f1f4ff;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.profile-switch:hover {
+  background: rgba(30, 40, 70, 0.9);
+  border-color: rgba(255, 255, 255, 0.4);
+}

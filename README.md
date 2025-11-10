@@ -17,6 +17,19 @@ A Phaser-based game project. This repository includes gameplay logic, spawn rule
 
 - GitHub Actions workflow `.github/workflows/ci.yml` runs unit tests and Playwright smoke tests on every push/PR.
 
+## Player Profiles & Cloud Save
+
+- 每位玩家在进入游戏前需输入一个 2~32 字的玩家 ID（支持中文名称）。系统会根据该 ID 绑定角色等级、最高得分与已解锁关卡。
+- 默认存档会保存在浏览器 `localStorage`。若要跨设备共享，请在 `.env` 中配置 Firebase：
+  ```bash
+  VITE_FIREBASE_API_KEY=your-api-key
+  VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+  VITE_FIREBASE_PROJECT_ID=your-project-id
+  ```
+  然后重新 `npm run build` 或 `npm run dev`。
+- 可选：设置 `VITE_DEFAULT_PROFILE_ID=dev-player` 方便本地调试；Playwright 通过访问 `/?profileId=e2e-smoke` 自动跳过输入。
+- 若要重新输入或切换玩家，可使用页面右上角的“切换玩家”按钮，或在地址栏添加 `?resetProfile=1` 重新加载登记界面。
+
 ## Manual Acceptance Checklist (Completed)
 
 - [x] Gameplay startup: preview loads without console errors; player spawns centered; HUD renders.
