@@ -175,6 +175,7 @@ export default class PlayScene extends Phaser.Scene {
     this.stageIndex = Phaser.Math.Clamp(profile.stageIndex, 0, StageDefinitions.length - 1)
     Object.assign(this.playerState, profile.playerState)
     this.playerState.hp = Phaser.Math.Clamp(this.playerState.hp, 0, this.playerState.maxHp)
+    this.equippedWeapon = profile.selectedWeapon ?? 'lightningChain'
   }
 
   update(_time: number, delta: number) {
@@ -772,6 +773,7 @@ export default class PlayScene extends Phaser.Scene {
     }
 
     this.equippedWeapon = id
+    profileManager.setSelectedWeapon(id)
 
     if (this.playerState.alive && !this.stageCleared) {
       this.setupAttackTimer()

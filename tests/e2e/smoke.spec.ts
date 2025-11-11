@@ -24,6 +24,11 @@ test.describe('Game smoke test', () => {
     })
 
     await page.goto('/?profileId=e2e-smoke')
+
+    const weaponChoice = page.locator('[data-weapon-id="flamethrower"]')
+    await weaponChoice.click()
+    await page.locator('.weapon-gate__confirm').click()
+
     const canvas = page.locator('#app canvas')
     await expect(canvas).toHaveCount(1)
 

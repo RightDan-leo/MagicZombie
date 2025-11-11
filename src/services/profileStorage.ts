@@ -2,6 +2,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 import { createInitialPlayerState } from '../game/logic/playerProgression'
 import type { PlayerState } from '../game/types/player'
+import type { WeaponId } from '../game/data/types'
+import { WeaponDefinitions } from '../game/data/weapons'
 import { getFirestoreDb, isFirebaseEnabled } from './firebase'
 
 export interface PlayerProfileRecord {
@@ -10,6 +12,7 @@ export interface PlayerProfileRecord {
   bestScore: number
   playerState: PlayerState
   updatedAt: number
+  selectedWeapon: WeaponId
 }
 
 const COLLECTION = 'profiles'
@@ -34,6 +37,7 @@ export function createDefaultProfile(id: string): PlayerProfileRecord {
     bestScore: 0,
     playerState: createInitialPlayerState(),
     updatedAt: Date.now(),
+    selectedWeapon: 'lightningChain',
   }
 }
 
@@ -57,6 +61,7 @@ function serializeProfile(profile: PlayerProfileRecord) {
     bestScore: profile.bestScore,
     playerState: sanitizeState(profile.playerState),
     updatedAt: profile.updatedAt,
+    selectedWeapon: profile.selectedWeapon,
   }
 }
 
@@ -69,12 +74,15 @@ function mergeProfile(id: string, data: any): PlayerProfileRecord {
   const bestScore = typeof data.bestScore === 'number' ? Math.max(0, Math.floor(data.bestScore)) : base.bestScore
   const playerState = sanitizeState({ ...base.playerState, ...(data.playerState ?? {}) })
   const updatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : base.updatedAt
+  const weaponCandidate = typeof data.selectedWeapon === 'string' ? (data.selectedWeapon as WeaponId) : base.selectedWeapon
+  const selectedWeapon = WeaponDefinitions[weaponCandidate] ? weaponCandidate : base.selectedWeapon
   return {
     id,
     stageIndex,
     bestScore,
     playerState,
     updatedAt,
+    selectedWeapon,
   }
 }
 

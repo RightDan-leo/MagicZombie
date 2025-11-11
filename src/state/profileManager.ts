@@ -1,4 +1,5 @@
 import type { PlayerState } from '../game/types/player'
+import type { WeaponId } from '../game/data/types'
 import { fetchProfile, persistProfile, type PlayerProfileRecord } from '../services/profileStorage'
 
 export interface ProfileSnapshot {
@@ -28,6 +29,22 @@ class ProfileManager {
     return this.profile
   }
 
+  getSelectedWeapon(): WeaponId {
+    return this.profile?.selectedWeapon ?? 'lightningChain'
+  }
+
+  setSelectedWeapon(weaponId: WeaponId) {
+    if (!this.profile || this.profile.selectedWeapon === weaponId) {
+      return
+    }
+    this.profile = {
+      ...this.profile,
+      selectedWeapon: weaponId,
+      updatedAt: Date.now(),
+    }
+    this.scheduleSave(true)
+  }
+
   updateSnapshot(snapshot: ProfileSnapshot) {
     if (!this.profile) {
       return
@@ -46,7 +63,15 @@ class ProfileManager {
     this.scheduleSave()
   }
 
-  private scheduleSave() {
+  private scheduleSave(force = false) {
+    if (force) {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer)
+        this.saveTimer = null
+      }
+      void this.flush()
+      return
+    }
     if (this.saveTimer) {
       return
     }

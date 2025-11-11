@@ -1,4 +1,4 @@
-import { normalizeProfileId } from '../../src/services/profileStorage'
+import { createDefaultProfile, normalizeProfileId } from '../../src/services/profileStorage'
 
 describe('normalizeProfileId', () => {
   it('trims whitespace and allows chinese characters', () => {
@@ -11,5 +11,12 @@ describe('normalizeProfileId', () => {
 
   it('rejects invalid characters', () => {
     expect(() => normalizeProfileId('bad/id')).toThrow()
+  })
+})
+
+describe('createDefaultProfile', () => {
+  it('assigns lightningChain as default weapon', () => {
+    const profile = createDefaultProfile('tester')
+    expect(profile.selectedWeapon).toBe('lightningChain')
   })
 })

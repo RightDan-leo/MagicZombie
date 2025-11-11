@@ -3,10 +3,12 @@ import Phaser from 'phaser'
 import './style.css'
 import config from './game/config'
 import { ensureProfileSelected } from './ui/profileGate'
+import { ensureWeaponSelected } from './ui/weaponGate'
 
 async function bootstrap() {
   try {
     await ensureProfileSelected()
+    await ensureWeaponSelected()
   } catch (error) {
     console.error('Failed to init player profile', error)
     const mountNode = document.getElementById('app')
