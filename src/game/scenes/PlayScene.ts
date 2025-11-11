@@ -85,6 +85,7 @@ export default class PlayScene extends Phaser.Scene {
   create() {
     this.playerState = createInitialPlayerState()
     this.populateStateFromProfile()
+    this.syncWeaponFromProfile()
 
     const keyboard = this.input.keyboard
     if (!keyboard) {
@@ -178,6 +179,13 @@ export default class PlayScene extends Phaser.Scene {
     this.equippedWeapon = profile.selectedWeapon ?? 'lightningChain'
   }
 
+  private syncWeaponFromProfile() {
+    const desired = profileManager.getSelectedWeapon()
+    if (this.equippedWeapon !== desired) {
+      this.equippedWeapon = desired
+    }
+  }
+
   update(_time: number, delta: number) {
     if (!this.playerState.alive) {
       return
@@ -209,6 +217,7 @@ export default class PlayScene extends Phaser.Scene {
     this.player.body?.reset(GAME_WIDTH / 2, GAME_HEIGHT / 2)
 
     this.scheduleNextSpawn(true)
+    this.syncWeaponFromProfile()
     this.setupAttackTimer()
 
     this.showStageBanner(stage)
