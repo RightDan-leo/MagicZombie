@@ -9,6 +9,7 @@ import { applyExperienceInPlace, createInitialPlayerState } from '../logic/playe
 import { getSpawnInterval, pickEnemyId, resolveBatchCount } from '../logic/spawnRules'
 import type { RandomFloatFn, RandomIntFn } from '../logic/spawnRules'
 import { profileManager } from '../../state/profileManager'
+import { ensureWeaponSelected } from '../../ui/weaponGate'
 import type { PlayerState } from '../types/player'
 
 type EnemySprite = Phaser.Physics.Arcade.Sprite & {
@@ -81,6 +82,8 @@ export default class PlayScene extends Phaser.Scene {
   private equippedWeapon: WeaponId = 'lightningChain'
 
   private stageBanner?: Phaser.GameObjects.Text
+
+  private stageReady = false
 
   create() {
     this.playerState = createInitialPlayerState()
@@ -164,7 +167,7 @@ export default class PlayScene extends Phaser.Scene {
       }
     })
 
-    this.startStage(StageDefinitions[this.stageIndex])
+    void this.prepareStage(StageDefinitions[this.stageIndex])
   }
 
   private populateStateFromProfile() {
@@ -186,8 +189,25 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
+  private async prepareStage(stage: StageDefinition) {
+    this.stageReady = false
+    try {
+      await ensureWeaponSelected()
+    } catch (error) {
+      console.error('Weapon selection failed', error)
+    }
+    this.startStage(stage)
+    this.stageReady = true
+  }
+
   update(_time: number, delta: number) {
-    if (!this.playerState.alive) {
+    if (!this.playerState.alive || !this.stageReady) {
+      return
+    }
+
+    if (this.stageCleared) {
+      this.updateHud()
+      this.publishDebugInfo()
       return
     }
 
@@ -423,7 +443,7 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   private performWeaponAttack() {
-    if (!this.playerState.alive) {
+    if (!this.playerState.alive || this.stageCleared) {
       return
     }
 
@@ -687,6 +707,7 @@ export default class PlayScene extends Phaser.Scene {
     this.spawnTimer = undefined
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
+    this.freezeEnemies()
 
     this.showOverlayMessage('你阵亡了', '按 R 重新开始当前关卡')
   }
@@ -697,13 +718,22 @@ export default class PlayScene extends Phaser.Scene {
     this.spawnTimer = undefined
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
+    this.freezeEnemies()
     this.showOverlayMessage(`关卡 ${this.stage.id} 完成`, '按 N 进入下一关')
+  }
+
+  private freezeEnemies() {
+    this.enemies.getChildren().forEach((child) => {
+      const enemy = child as EnemySprite
+      enemy.setVelocity(0, 0)
+      enemy.setAngularVelocity(0)
+    })
   }
 
   private restartStage() {
     this.hideOverlay()
     this.playerState = createInitialPlayerState()
-    this.startStage(StageDefinitions[this.stageIndex])
+    void this.prepareStage(StageDefinitions[this.stageIndex])
   }
 
   private advanceToNextStage() {
@@ -713,7 +743,7 @@ export default class PlayScene extends Phaser.Scene {
 
     this.hideOverlay()
     this.playerState.hp = this.playerState.maxHp
-    this.startStage(StageDefinitions[this.stageIndex])
+    void this.prepareStage(StageDefinitions[this.stageIndex])
   }
 
   private overlayBackground?: Phaser.GameObjects.Rectangle

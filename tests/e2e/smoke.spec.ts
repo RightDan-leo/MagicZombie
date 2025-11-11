@@ -26,6 +26,7 @@ test.describe('Game smoke test', () => {
     await page.goto('/?profileId=e2e-smoke')
 
     const weaponChoice = page.locator('[data-weapon-id="flamethrower"]')
+    await weaponChoice.waitFor({ state: 'visible' })
     await weaponChoice.click()
     await page.locator('.weapon-gate__confirm').click()
 
