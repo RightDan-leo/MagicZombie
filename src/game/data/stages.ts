@@ -4,7 +4,8 @@ export const StageDefinitions: StageDefinition[] = [
   {
     id: 1,
     name: '城区外围',
-    targetScore: 5000,
+    backgroundKey: 'stage-background-1',
+    targetScore: 3000,
     recommendedDuration: 180,
     baseSpawnInterval: 4500,
     minSpawnInterval: 3000,
@@ -17,7 +18,8 @@ export const StageDefinitions: StageDefinition[] = [
   {
     id: 2,
     name: '商场废墟',
-    targetScore: 12000,
+    backgroundKey: 'stage-background-2',
+    targetScore: 8000,
     recommendedDuration: 210,
     baseSpawnInterval: 4200,
     minSpawnInterval: 2600,
@@ -31,7 +33,8 @@ export const StageDefinitions: StageDefinition[] = [
   {
     id: 3,
     name: '工业区管道',
-    targetScore: 20000,
+    backgroundKey: 'stage-background-3',
+    targetScore: 15000,
     recommendedDuration: 240,
     baseSpawnInterval: 4000,
     minSpawnInterval: 2400,
@@ -46,6 +49,7 @@ export const StageDefinitions: StageDefinition[] = [
   {
     id: 4,
     name: '能源站外环',
+    backgroundKey: 'stage-background-4',
     targetScore: 30000,
     recommendedDuration: 270,
     baseSpawnInterval: 3600,
@@ -61,6 +65,7 @@ export const StageDefinitions: StageDefinition[] = [
   {
     id: 5,
     name: '重灾区中心',
+    backgroundKey: 'stage-background-5',
     targetScore: 45000,
     recommendedDuration: 300,
     baseSpawnInterval: 3400,

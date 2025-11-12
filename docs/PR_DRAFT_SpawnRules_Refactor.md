@@ -31,6 +31,7 @@ This PR extracts enemy spawn logic into a dedicated module (`src/game/logic/spaw
   - Add Playwright smoke test (`tests/e2e/smoke.spec.ts`) to ensure the game boots without console errors, renders the main canvas, updates HUD text, and responds to movement input.
   - Add GitHub Actions deploy workflow (`.github/workflows/deploy.yml`) to build with `VITE_BASE_PATH=/MagicZombie/` and publish `dist` to GitHub Pages.
   - 新增 `tests/unit/profileStorage.test.ts` 覆盖玩家 ID 规范化与默认武器逻辑，并更新 E2E 测试通过 `/?profileId=e2e-smoke` 自动登录及武器选择。
+  - 引入武器经验系统与强化界面：HUD 显示三条武器经验，击杀升级后弹出“武器增强”三选一面板，支持增益叠加（射程、穿透、DOT、暴击等）。Playwright 测试会等待强化选择。
 
 ## Rationale
 

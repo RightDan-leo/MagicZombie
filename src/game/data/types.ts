@@ -31,6 +31,7 @@ export interface EnemyDefinition {
   score: number
   unlockStage: number
   aiBehavior: 'chaser' | 'pouncer' | 'tank' | 'boss' | 'evader'
+  weaponExpMultiplier?: number
 }
 
 export interface StageSpawnRule {
@@ -43,6 +44,7 @@ export interface StageSpawnRule {
 export interface StageDefinition {
   id: number
   name: string
+  backgroundKey: string
   targetScore: number
   recommendedDuration: number
   baseSpawnInterval: number

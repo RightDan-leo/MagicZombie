@@ -10,6 +10,15 @@ import { getSpawnInterval, pickEnemyId, resolveBatchCount } from '../logic/spawn
 import type { RandomFloatFn, RandomIntFn } from '../logic/spawnRules'
 import { profileManager } from '../../state/profileManager'
 import { ensureWeaponSelected } from '../../ui/weaponGate'
+import {
+  addWeaponExperience,
+  calculateWeaponExpGain,
+  createInitialWeaponProgress,
+  getWeaponProgressSummary,
+  type WeaponProgressMap,
+} from '../logic/weaponProgression'
+import { WeaponEnhancementPools, type WeaponEnhancementId } from '../data/weaponEnhancements'
+import { presentWeaponEnhancements } from '../../ui/weaponEnhanceGate'
 import type { PlayerState } from '../types/player'
 
 type EnemySprite = Phaser.Physics.Arcade.Sprite & {
@@ -22,6 +31,7 @@ type ProjectileSprite = Phaser.Physics.Arcade.Sprite & {
   damage: number
   penetration: number
   element: 'water' | 'generic'
+  weaponId?: WeaponId
 }
 
 type MovementKeys = {
@@ -31,6 +41,8 @@ type MovementKeys = {
   right: Phaser.Input.Keyboard.Key
 }
 
+type WeaponEnhancementState = Partial<Record<WeaponEnhancementId, number>>
+
 type DebugWindow = Window & {
   __MAGICZOMBIE_DEBUG__?: {
     stageId: number | null
@@ -38,10 +50,12 @@ type DebugWindow = Window & {
     player: { x: number; y: number }
     enemyCount: number
     hudText: string
+    projectiles?: Array<{ createdAt: number; weaponId?: WeaponId; velocity: { x: number; y: number } }>
   }
 }
 
 const ENEMY_LIMIT = 60
+const WEAPON_ORDER: WeaponId[] = ['lightningChain', 'flamethrower', 'waterCannon']
 const PLAYER_INVULNERABLE_TIME = 600
 
 export default class PlayScene extends Phaser.Scene {
@@ -60,6 +74,8 @@ export default class PlayScene extends Phaser.Scene {
   private enemies!: Phaser.Physics.Arcade.Group
 
   private projectiles!: Phaser.Physics.Arcade.Group
+
+  private backgroundImage?: Phaser.GameObjects.Image
 
   private hudText!: Phaser.GameObjects.Text
 
@@ -84,6 +100,14 @@ export default class PlayScene extends Phaser.Scene {
   private stageBanner?: Phaser.GameObjects.Text
 
   private stageReady = false
+  private weaponProgress: WeaponProgressMap = createInitialWeaponProgress(WEAPON_ORDER)
+  private weaponEnhancements: Record<WeaponId, WeaponEnhancementState> = {
+    lightningChain: {},
+    flamethrower: {},
+    waterCannon: {},
+  }
+  private pendingEnhancements: WeaponId[] = []
+  private enhancementOverlayActive = false
 
   create() {
     this.playerState = createInitialPlayerState()
@@ -105,7 +129,9 @@ export default class PlayScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x10131f).setOrigin(0)
+    const initialStage = StageDefinitions[this.stageIndex] ?? StageDefinitions[0]
+    this.updateBackgroundTexture(initialStage.backgroundKey)
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0d17, 0.35).setOrigin(0).setDepth(-11)
 
     this.player = this.physics.add
       .sprite(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'player')
@@ -170,6 +196,23 @@ export default class PlayScene extends Phaser.Scene {
     void this.prepareStage(StageDefinitions[this.stageIndex])
   }
 
+  private updateBackgroundTexture(textureKey: string) {
+    if (!textureKey || !this.textures.exists(textureKey)) {
+      console.warn(`Background texture "${textureKey}" is not loaded; skipping update.`)
+      return
+    }
+
+    if (!this.backgroundImage) {
+      this.backgroundImage = this.add
+        .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, textureKey)
+        .setDepth(-12)
+    } else {
+      this.backgroundImage.setTexture(textureKey)
+    }
+
+    this.backgroundImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+  }
+
   private populateStateFromProfile() {
     const profile = profileManager.getProfile()
     if (!profile) {
@@ -198,6 +241,7 @@ export default class PlayScene extends Phaser.Scene {
     }
     this.startStage(stage)
     this.stageReady = true
+    this.processEnhancementQueue()
   }
 
   update(_time: number, delta: number) {
@@ -222,6 +266,7 @@ export default class PlayScene extends Phaser.Scene {
 
   private startStage(stage: StageDefinition) {
     this.stage = stage
+    this.updateBackgroundTexture(stage.backgroundKey)
     this.score = 0
     this.elapsedTime = 0
     this.stageCleared = false
@@ -276,7 +321,9 @@ export default class PlayScene extends Phaser.Scene {
 
     if (direction.lengthSq() > 0) {
       direction.normalize()
-      this.player.setVelocity(direction.x * this.playerState.speed, direction.y * this.playerState.speed)
+      const speedMultiplier = this.getMovementSpeedMultiplier()
+      const speed = this.playerState.speed * speedMultiplier
+      this.player.setVelocity(direction.x * speed, direction.y * speed)
     } else {
       this.player.setVelocity(0, 0)
     }
@@ -292,6 +339,16 @@ export default class PlayScene extends Phaser.Scene {
       const enemy = child as EnemySprite
       if (!enemy.active) {
         return
+      }
+      const freezeUntil = enemy.getData('freezeUntil') as number | undefined
+      if (freezeUntil && freezeUntil > this.time.now) {
+        enemy.setVelocity(0, 0)
+        enemy.setAngularVelocity(0)
+        return
+      }
+      if (freezeUntil && freezeUntil <= this.time.now) {
+        enemy.setData('freezeUntil', undefined)
+        enemy.clearTint()
       }
 
       const definition = EnemyDefinitions[enemy.enemyId]
@@ -463,8 +520,8 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   private performLightningChain() {
-    const weapon = WeaponDefinitions.lightningChain
-    const enemies = this.getEnemiesInRange(weapon.range)
+    const stats = this.getLightningStats()
+    const enemies = this.getEnemiesInRange(stats.range)
 
     if (enemies.length === 0) {
       return
@@ -473,18 +530,25 @@ export default class PlayScene extends Phaser.Scene {
     let sourceX = this.player.x
     let sourceY = this.player.y
 
-    const targets = enemies.slice(0, weapon.chainTargets ?? 1)
+    const targets = enemies.slice(0, stats.chainTargets)
     targets.forEach((enemy) => {
       this.drawLightning(sourceX, sourceY, enemy.x, enemy.y)
-      this.damageEnemy(enemy, weapon.baseDamage)
+      let damage = stats.damage
+      if (stats.critChance > 0 && Math.random() < stats.critChance) {
+        damage *= 2
+      }
+      this.damageEnemy(enemy, damage, 'lightningChain')
+      if (stats.overloadStacks > 0) {
+        this.spawnLightningOverloadField(enemy.x, enemy.y, damage, stats.overloadStacks)
+      }
       sourceX = enemy.x
       sourceY = enemy.y
     })
   }
 
   private performFlamethrower() {
-    const weapon = WeaponDefinitions.flamethrower
-    const targets = this.getEnemiesInRange(weapon.range)
+    const stats = this.getFlamethrowerStats()
+    const targets = this.getEnemiesInRange(stats.range)
 
     if (targets.length === 0) {
       return
@@ -497,41 +561,53 @@ export default class PlayScene extends Phaser.Scene {
     }
     direction.normalize()
 
-    const coneTargets = this.getEnemiesWithinCone(weapon.range, direction, Phaser.Math.DegToRad(50))
-
-    coneTargets.slice(0, Math.min(6, coneTargets.length)).forEach((enemy) => {
-      this.damageEnemy(enemy, weapon.baseDamage)
+    const coneTargets = this.getEnemiesWithinCone(stats.range, direction, Phaser.Math.DegToRad(50))
+    const maxHits = Math.min(6 + stats.extraTargets, coneTargets.length)
+    coneTargets.slice(0, maxHits).forEach((enemy) => {
+      this.damageEnemy(enemy, stats.damage, 'flamethrower')
+      this.applyFlamethrowerBurn(enemy, stats.damage, stats.burnStacks)
     })
 
-    this.drawFlamethrowerCone(direction, weapon.range)
+    this.drawFlamethrowerCone(direction, stats.range)
   }
 
   private performWaterCannon() {
-    const weapon = WeaponDefinitions.waterCannon
-    const enemies = this.getEnemiesInRange(weapon.range)
+    const stats = this.getWaterCannonStats()
+    const target = this.getNearestEnemy()
 
-    if (enemies.length === 0) {
-      return
-    }
-
-    const target = enemies[0]
-    const direction = new Phaser.Math.Vector2(target.x - this.player.x, target.y - this.player.y)
+    const direction = new Phaser.Math.Vector2(
+      target ? target.x - this.player.x : 1,
+      target ? target.y - this.player.y : 0,
+    )
     if (direction.lengthSq() === 0) {
       direction.set(1, 0)
     }
     direction.normalize()
 
     const projectile = this.physics.add.sprite(this.player.x, this.player.y, 'projectile-water') as ProjectileSprite
-    projectile.damage = weapon.baseDamage
-    projectile.penetration = weapon.penetration ?? 1
+    const body = projectile.body as Phaser.Physics.Arcade.Body
+    body.setAllowGravity(false)
+    body.setImmovable(false)
+    body.setDrag(0, 0)
+    body.useDamping = false
+    projectile.damage = stats.damage
+    projectile.penetration = Number.POSITIVE_INFINITY
     projectile.element = 'water'
+    projectile.weaponId = 'waterCannon'
     projectile.setDepth(3)
     projectile.setRotation(direction.angle() + Math.PI / 2)
-    projectile.setVelocity(direction.x * (weapon.projectileSpeed ?? 520), direction.y * (weapon.projectileSpeed ?? 520))
-    projectile.setData('expire', this.time.now + 1400)
+    projectile.setVelocity(0, 0)
+    projectile.setData('expire', undefined)
     projectile.setData('recentHits', new Set<EnemySprite>())
+    projectile.setData('burstStacks', stats.burstStacks)
+    projectile.setData('freezeChance', stats.freezeChance)
+    projectile.setData('freezeStacks', stats.freezeStacks)
+    projectile.setData('rippleStacks', stats.rippleStacks)
+    const velocity = new Phaser.Math.Vector2(direction.x * stats.projectileSpeed, direction.y * stats.projectileSpeed)
+    projectile.setData('velocity', velocity)
 
     this.projectiles.add(projectile)
+    this.registerProjectileDebug(projectile)
   }
 
   private getEnemiesInRange(range: number) {
@@ -542,6 +618,23 @@ export default class PlayScene extends Phaser.Scene {
       .filter((entry) => entry.distance <= range)
       .sort((a, b) => a.distance - b.distance)
       .map((entry) => entry.enemy)
+  }
+
+  private getNearestEnemy() {
+    const list = this.enemies.getChildren() as EnemySprite[]
+    let closest: EnemySprite | undefined
+    let minDistance = Number.POSITIVE_INFINITY
+    list.forEach((enemy) => {
+      if (!enemy.active) {
+        return
+      }
+      const distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y)
+      if (distance < minDistance) {
+        minDistance = distance
+        closest = enemy
+      }
+    })
+    return closest
   }
 
   private getEnemiesWithinCone(range: number, direction: Phaser.Math.Vector2, halfAngle: number) {
@@ -631,10 +724,10 @@ export default class PlayScene extends Phaser.Scene {
     })
   }
 
-  private damageEnemy(enemy: EnemySprite, amount: number) {
+  private damageEnemy(enemy: EnemySprite, amount: number, sourceWeapon?: WeaponId) {
     enemy.hp -= amount
     if (enemy.hp <= 0) {
-      this.handleEnemyKilled(enemy)
+      this.handleEnemyKilled(enemy, sourceWeapon)
     } else {
       enemy.setTintFill(0xffffcc)
       this.time.delayedCall(80, () => {
@@ -643,10 +736,11 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
-  private handleEnemyKilled(enemy: EnemySprite) {
+  private handleEnemyKilled(enemy: EnemySprite, sourceWeapon?: WeaponId) {
     const definition = EnemyDefinitions[enemy.enemyId]
     this.addScore(definition.score)
     this.addExperience(definition.experience)
+    this.addWeaponExperienceFromKill(sourceWeapon ?? this.equippedWeapon, enemy.enemyId)
 
     enemy.disableBody(true, true)
     enemy.destroy()
@@ -663,8 +757,146 @@ export default class PlayScene extends Phaser.Scene {
     applyExperienceInPlace(this.playerState, amount)
   }
 
-  private onEnemyTouchesPlayer(enemy: EnemySprite) {
+  private addWeaponExperienceFromKill(weaponId: WeaponId | undefined, enemyId: EnemyId) {
+    if (!weaponId) {
+      return
+    }
+    const gain = calculateWeaponExpGain(enemyId)
+    const levels = addWeaponExperience(this.weaponProgress, weaponId, gain)
+    if (levels > 0) {
+      this.enqueueWeaponEnhancements(weaponId, levels)
+    }
+  }
+
+  private enqueueWeaponEnhancements(weaponId: WeaponId, count: number) {
+    for (let i = 0; i < count; i += 1) {
+      this.pendingEnhancements.push(weaponId)
+    }
+    this.processEnhancementQueue()
+  }
+
+  private processEnhancementQueue() {
+    if (this.enhancementOverlayActive) {
+      return
+    }
+    if (this.pendingEnhancements.length === 0) {
+      return
+    }
+    if (!this.stageReady || !this.playerState.alive) {
+      return
+    }
+    const weaponId = this.pendingEnhancements.shift()
+    if (!weaponId) {
+      return
+    }
+    this.enhancementOverlayActive = true
+    this.pauseCombatForOverlay()
+    void this.openEnhancementSelection(weaponId)
+  }
+
+  private async openEnhancementSelection(weaponId: WeaponId) {
+    const weapon = WeaponDefinitions[weaponId]
+    const choices = this.pickEnhancementChoices(weaponId)
+    if (choices.length === 0) {
+      this.enhancementOverlayActive = false
+      this.resumeCombatAfterOverlay()
+      return
+    }
+    const selection = await presentWeaponEnhancements(weapon.label, choices)
+    if (selection) {
+      this.incrementEnhancement(weaponId, selection)
+    }
+    this.enhancementOverlayActive = false
+    this.resumeCombatAfterOverlay()
+    this.processEnhancementQueue()
+  }
+
+  private pickEnhancementChoices(weaponId: WeaponId) {
+    const pool = WeaponEnhancementPools[weaponId]
+    const stacks = this.weaponEnhancements[weaponId] ?? {}
+    const available = pool.filter((def) => (stacks[def.id] ?? 0) < def.maxStacks)
+    const candidates = available.length >= 3 ? available : pool
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5)
+    const selected = shuffled.slice(0, Math.min(3, shuffled.length))
+    return selected.map((def) => {
+      const stack = stacks[def.id] ?? 0
+      return {
+        id: def.id,
+        weaponId,
+        name: def.name,
+        description: def.description,
+        stacks: stack,
+        maxStacks: def.maxStacks,
+        disabled: stack >= def.maxStacks,
+      }
+    })
+  }
+
+  private incrementEnhancement(weaponId: WeaponId, enhancementId: WeaponEnhancementId) {
+    const pool = WeaponEnhancementPools[weaponId]
+    const definition = pool.find((item) => item.id === enhancementId)
+    if (!definition) {
+      return
+    }
+    const stacks = this.getEnhancementStack(weaponId, enhancementId)
+    if (stacks >= definition.maxStacks) {
+      return
+    }
+    const bucket = this.weaponEnhancements[weaponId] ?? {}
+    bucket[enhancementId] = stacks + 1
+    this.weaponEnhancements[weaponId] = bucket
+    if (weaponId === this.equippedWeapon) {
+      this.setupAttackTimer()
+    }
+  }
+
+  private getEnhancementStack(weaponId: WeaponId, enhancementId: WeaponEnhancementId) {
+    return this.weaponEnhancements[weaponId]?.[enhancementId] ?? 0
+  }
+
+  private pauseCombatForOverlay() {
+    this.stageReady = false
+    this.player.setVelocity(0, 0)
+    this.enemies.getChildren().forEach((child) => {
+      const enemy = child as EnemySprite
+      enemy.setVelocity(0, 0)
+      enemy.setAngularVelocity(0)
+    })
+    if (this.spawnTimer) {
+      this.spawnTimer.paused = true
+    }
+    if (this.attackTimer) {
+      this.attackTimer.paused = true
+    }
+  }
+
+  private resumeCombatAfterOverlay() {
     if (!this.playerState.alive) {
+      return
+    }
+    this.stageReady = true
+    if (this.spawnTimer) {
+      this.spawnTimer.paused = false
+    }
+    if (this.attackTimer) {
+      this.attackTimer.paused = false
+    }
+    this.processEnhancementQueue()
+  }
+
+  private resetWeaponSystems() {
+    this.weaponProgress = createInitialWeaponProgress(WEAPON_ORDER)
+    this.weaponEnhancements = {
+      lightningChain: {},
+      flamethrower: {},
+      waterCannon: {},
+    }
+    this.pendingEnhancements = []
+    this.enhancementOverlayActive = false
+  }
+
+  private onEnemyTouchesPlayer(enemy: EnemySprite) {
+    if (!this.playerState.alive || this.stageCleared) {
       return
     }
 
@@ -708,6 +940,7 @@ export default class PlayScene extends Phaser.Scene {
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
     this.freezeEnemies()
+    this.resetWeaponSystems()
 
     this.showOverlayMessage('你阵亡了', '按 R 重新开始当前关卡')
   }
@@ -733,6 +966,11 @@ export default class PlayScene extends Phaser.Scene {
   private restartStage() {
     this.hideOverlay()
     this.playerState = createInitialPlayerState()
+    this.stageIndex = 0
+    this.score = 0
+    this.elapsedTime = 0
+    this.stageCleared = false
+    this.resetWeaponSystems()
     void this.prepareStage(StageDefinitions[this.stageIndex])
   }
 
@@ -798,9 +1036,9 @@ export default class PlayScene extends Phaser.Scene {
   private setupAttackTimer() {
     this.attackTimer?.remove(false)
 
-    const weapon = WeaponDefinitions[this.equippedWeapon]
+    const attacksPerSecond = this.getAttackRateForWeapon(this.equippedWeapon)
     this.attackTimer = this.time.addEvent({
-      delay: 1000 / weapon.attacksPerSecond,
+      delay: 1000 / attacksPerSecond,
       loop: true,
       callback: () => this.performWeaponAttack(),
     })
@@ -819,13 +1057,18 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
-  private updateProjectiles(_delta: number) {
+  private updateProjectiles(delta: number) {
     const margin = 80
 
     this.projectiles.getChildren().forEach((child) => {
       const projectile = child as ProjectileSprite
       if (!projectile.active) {
         return
+      }
+      const velocity = projectile.getData('velocity') as Phaser.Math.Vector2 | undefined
+      if (velocity) {
+        projectile.x += velocity.x * (delta / 1000)
+        projectile.y += velocity.y * (delta / 1000)
       }
 
       const expire = projectile.getData('expire') as number | undefined
@@ -851,33 +1094,224 @@ export default class PlayScene extends Phaser.Scene {
 
     recentHits?.add(enemy)
 
-    this.damageEnemy(enemy, projectile.damage)
+    this.damageEnemy(enemy, projectile.damage, projectile.weaponId)
+
+    const rippleStacks = projectile.getData('rippleStacks') as number | undefined
+    if (rippleStacks && rippleStacks > 0) {
+      this.damageEnemy(enemy, projectile.damage * 0.15 * rippleStacks, 'waterCannon')
+    }
+
+    const freezeChance = projectile.getData('freezeChance') as number | undefined
+    if (freezeChance && Math.random() < freezeChance) {
+      const freezeStacks = (projectile.getData('freezeStacks') as number | undefined) ?? 1
+      this.applyFreeze(enemy, freezeStacks)
+    }
 
     if (projectile.element === 'water') {
       enemy.setData('slowExpire', this.time.now + 900)
     }
 
-    projectile.penetration -= 1
-    if (projectile.penetration <= 0) {
-      this.destroyProjectile(projectile)
+    if (Number.isFinite(projectile.penetration)) {
+      projectile.penetration -= 1
+      if (projectile.penetration <= 0) {
+        this.destroyProjectile(projectile)
+      }
     }
   }
 
   private destroyProjectile(projectile: ProjectileSprite) {
+    if (projectile.element === 'water') {
+      const burstStacks = projectile.getData('burstStacks') as number | undefined
+      if (burstStacks && burstStacks > 0) {
+        this.spawnWaterBurst(projectile.x, projectile.y, projectile.damage * 0.5, burstStacks)
+      }
+    }
     projectile.destroy()
   }
 
+  private registerProjectileDebug(projectile: ProjectileSprite) {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const debugWindow = window as DebugWindow
+    if (!debugWindow.__MAGICZOMBIE_DEBUG__) {
+      debugWindow.__MAGICZOMBIE_DEBUG__ = {
+        stageId: null,
+        score: 0,
+        player: { x: 0, y: 0 },
+        enemyCount: 0,
+        hudText: '',
+        projectiles: [],
+      }
+    }
+    const store = debugWindow.__MAGICZOMBIE_DEBUG__!
+    store.projectiles = store.projectiles ?? []
+    const velocity = projectile.getData('velocity') as Phaser.Math.Vector2 | undefined
+    store.projectiles.push({
+      createdAt: this.time.now,
+      weaponId: projectile.weaponId,
+      velocity: velocity ? { x: velocity.x, y: velocity.y } : { x: 0, y: 0 },
+    })
+    if (store.projectiles.length > 20) {
+      store.projectiles.shift()
+    }
+  }
+
+  private getMovementSpeedMultiplier() {
+    if (this.equippedWeapon === 'flamethrower') {
+      return 1 + 0.1 * this.getEnhancementStack('flamethrower', 'flame_speed')
+    }
+    return 1
+  }
+
+  private getAttackRateForWeapon(weaponId: WeaponId) {
+    const base = WeaponDefinitions[weaponId].attacksPerSecond
+    if (weaponId === 'lightningChain') {
+      const stacks = this.getEnhancementStack('lightningChain', 'chain_speed')
+      return base * (1 + 0.15 * stacks)
+    }
+    return base
+  }
+
+  private getFlamethrowerStats() {
+    const base = WeaponDefinitions.flamethrower
+    const rangeMultiplier = 1 + 0.2 * this.getEnhancementStack('flamethrower', 'flame_range')
+    const damageMultiplier = 1 + 0.3 * this.getEnhancementStack('flamethrower', 'flame_heat')
+    const extraTargets = this.getEnhancementStack('flamethrower', 'flame_density') * 2
+    const burnStacks = this.getEnhancementStack('flamethrower', 'flame_burn')
+    return {
+      range: base.range * rangeMultiplier,
+      damage: base.baseDamage * damageMultiplier,
+      extraTargets,
+      burnStacks,
+    }
+  }
+
+  private getWaterCannonStats() {
+    const base = WeaponDefinitions.waterCannon
+    const velocityStacks = this.getEnhancementStack('waterCannon', 'water_velocity')
+    const damageStacks = this.getEnhancementStack('waterCannon', 'water_damage')
+    const burstStacks = this.getEnhancementStack('waterCannon', 'water_burst')
+    const freezeStacks = this.getEnhancementStack('waterCannon', 'water_freeze')
+    const rippleStacks = this.getEnhancementStack('waterCannon', 'water_ripple')
+    const speedMultiplier = 1 + 0.25 * velocityStacks
+    return {
+      damage: base.baseDamage * (1 + 0.2 * damageStacks),
+      projectileSpeed: (base.projectileSpeed ?? 520) * speedMultiplier,
+      burstStacks,
+      freezeChance: Math.min(0.8, 0.06 * freezeStacks),
+      freezeStacks,
+      rippleStacks,
+    }
+  }
+
+  private getLightningStats() {
+    const base = WeaponDefinitions.lightningChain
+    const jumpStacks = this.getEnhancementStack('lightningChain', 'chain_jump')
+    const rangeStacks = this.getEnhancementStack('lightningChain', 'chain_range')
+    const overloadStacks = this.getEnhancementStack('lightningChain', 'chain_overload')
+    const critStacks = this.getEnhancementStack('lightningChain', 'chain_crit')
+    const speedStacks = this.getEnhancementStack('lightningChain', 'chain_speed')
+    const damageMultiplier = Math.max(0.2, 1 - 0.1 * speedStacks)
+    return {
+      damage: base.baseDamage * damageMultiplier,
+      range: base.range * (1 + 0.2 * rangeStacks),
+      chainTargets: (base.chainTargets ?? 3) + jumpStacks * 2,
+      overloadStacks,
+      critChance: Math.min(0.9, 0.1 * critStacks),
+      attacksPerSecond: base.attacksPerSecond * (1 + 0.15 * speedStacks),
+    }
+  }
+
+  private applyFlamethrowerBurn(enemy: EnemySprite, damage: number, stacks: number) {
+    if (stacks <= 0) {
+      return
+    }
+    const tickDamage = damage * 0.5
+    for (let i = 1; i <= stacks; i += 1) {
+      this.time.delayedCall(1000 * i, () => {
+        if (!enemy.active || this.stageCleared) {
+          return
+        }
+        this.damageEnemy(enemy, tickDamage, 'flamethrower')
+      })
+    }
+  }
+
+  private spawnWaterBurst(x: number, y: number, damage: number, stacks: number) {
+    if (stacks <= 0) {
+      return
+    }
+    const radius = 80 + stacks * 10
+    const enemies = this.enemies.getChildren() as EnemySprite[]
+    enemies.forEach((enemy) => {
+      if (!enemy.active) {
+        return
+      }
+      const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y)
+      if (distance <= radius) {
+        this.damageEnemy(enemy, damage, 'waterCannon')
+        enemy.setData('slowExpire', this.time.now + 600)
+      }
+    })
+    const gfx = this.add.circle(x, y, radius, 0x99d4ff, 0.25).setDepth(2)
+    this.tweens.add({ targets: gfx, alpha: 0, duration: 250, onComplete: () => gfx.destroy() })
+  }
+
+  private applyFreeze(enemy: EnemySprite, stacks: number) {
+    if (stacks <= 0) {
+      return
+    }
+    enemy.setData('freezeUntil', this.time.now + 600 + stacks * 200)
+    enemy.setTintFill(0xc7f0ff)
+    this.time.delayedCall(600 + stacks * 200, () => {
+      enemy.clearTint()
+    })
+  }
+
+  private spawnLightningOverloadField(x: number, y: number, damage: number, stacks: number) {
+    if (stacks <= 0) {
+      return
+    }
+    const radius = 70 + stacks * 12
+    const pulses = 4 + stacks
+    const interval = 250
+    const gfx = this.add.circle(x, y, radius, 0x8fe4ff, 0.25).setDepth(2)
+    let count = 0
+    this.time.addEvent({
+      delay: interval,
+      repeat: pulses,
+      callback: () => {
+        const enemies = this.enemies.getChildren() as EnemySprite[]
+        enemies.forEach((enemy) => {
+          if (!enemy.active) {
+            return
+          }
+          const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y)
+          if (distance <= radius) {
+            this.damageEnemy(enemy, damage * 0.3, 'lightningChain')
+          }
+        })
+        count += 1
+        if (count > pulses) {
+          gfx.destroy()
+        }
+      },
+    })
+  }
   private updateHud() {
     const expProgress = `${Math.floor(this.playerState.exp)}/${this.playerState.nextExp}`
     const timeText = this.elapsedTime.toFixed(1)
-    const enemyCount = this.enemies.countActive(true)
     const weapon = WeaponDefinitions[this.equippedWeapon]
+
+    const weaponProgressText = this.buildWeaponProgressLines()
 
     this.hudText.setText(
       `关卡 ${this.stage.id} | 分数 ${this.score}/${this.stage.targetScore}\n` +
         `生命 ${Math.ceil(this.playerState.hp)}/${this.playerState.maxHp} | 等级 ${this.playerState.level} (${expProgress})\n` +
-        `时间 ${timeText}s | 敌人 ${enemyCount}/${ENEMY_LIMIT}\n` +
-        `武器 ${weapon.label} | 伤害 ${weapon.baseDamage} | 攻速 ${weapon.attacksPerSecond.toFixed(1)}/s`,
+        `时间 ${timeText}s\n` +
+        `武器 ${weapon.label} | 伤害 ${weapon.baseDamage} | 攻速 ${weapon.attacksPerSecond.toFixed(1)}/s\n` +
+        `${weaponProgressText}`,
     )
 
     profileManager.updateSnapshot({
@@ -885,6 +1319,16 @@ export default class PlayScene extends Phaser.Scene {
       score: this.score,
       playerState: this.playerState,
     })
+  }
+
+  private buildWeaponProgressLines() {
+    const weaponId = this.equippedWeapon
+    const weapon = WeaponDefinitions[weaponId]
+    const summary = getWeaponProgressSummary(this.weaponProgress, weaponId)
+    if (summary.max) {
+      return `${weapon.label} Lv${summary.level} (MAX)`
+    }
+    return `${weapon.label} Lv${summary.level} (${summary.exp}/${summary.next})`
   }
 
   private publishDebugInfo() {
@@ -899,6 +1343,7 @@ export default class PlayScene extends Phaser.Scene {
       player: { x: this.player.x, y: this.player.y },
       enemyCount: this.enemies.countActive(true),
       hudText: this.hudText?.text ?? '',
+      projectiles: debugWindow.__MAGICZOMBIE_DEBUG__?.projectiles ?? [],
     }
   }
 }

@@ -12,6 +12,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 100,
     unlockStage: 1,
     aiBehavior: 'chaser',
+    weaponExpMultiplier: 1,
   },
   zombieDog: {
     id: 'zombieDog',
@@ -24,6 +25,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 80,
     unlockStage: 1,
     aiBehavior: 'pouncer',
+    weaponExpMultiplier: 1,
   },
   zombieMedium: {
     id: 'zombieMedium',
@@ -36,6 +38,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 600,
     unlockStage: 2,
     aiBehavior: 'tank',
+    weaponExpMultiplier: 3,
   },
   zombieBear: {
     id: 'zombieBear',
@@ -48,6 +51,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 800,
     unlockStage: 3,
     aiBehavior: 'tank',
+    weaponExpMultiplier: 5,
   },
   zombieLarge: {
     id: 'zombieLarge',
@@ -60,6 +64,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 1200,
     unlockStage: 5,
     aiBehavior: 'boss',
+    weaponExpMultiplier: 7,
   },
   rewardRabbit: {
     id: 'rewardRabbit',
@@ -72,6 +77,7 @@ export const EnemyDefinitions: Record<EnemyDefinition['id'], EnemyDefinition> = 
     score: 1500,
     unlockStage: 1,
     aiBehavior: 'evader',
+    weaponExpMultiplier: 4,
   },
 }
 

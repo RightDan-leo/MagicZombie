@@ -5,6 +5,20 @@ export default class BootScene extends Phaser.Scene {
     super('BootScene')
   }
 
+  preload() {
+    const backgrounds: Array<{ key: string; file: string }> = [
+      { key: 'stage-background-1', file: 'assets/backgrounds/back_ground_1.png' },
+      { key: 'stage-background-2', file: 'assets/backgrounds/back_ground_2.png' },
+      { key: 'stage-background-3', file: 'assets/backgrounds/back_ground_3.png' },
+      { key: 'stage-background-4', file: 'assets/backgrounds/back_ground_4.png' },
+      { key: 'stage-background-5', file: 'assets/backgrounds/back_ground_5.png' },
+    ]
+
+    backgrounds.forEach(({ key, file }) => {
+      this.load.image(key, file)
+    })
+  }
+
   create() {
     this.createTextures()
     this.scene.start('PlayScene')

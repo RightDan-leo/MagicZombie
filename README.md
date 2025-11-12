@@ -29,6 +29,8 @@ A Phaser-based game project. This repository includes gameplay logic, spawn rule
   然后重新 `npm run build` 或 `npm run dev`。
 - 可选：设置 `VITE_DEFAULT_PROFILE_ID=dev-player` 方便本地调试；Playwright 通过访问 `/?profileId=e2e-smoke` 自动跳过输入。
 - 若要重新输入或切换玩家，可使用页面右上角的“切换玩家”按钮，或在地址栏添加 `?resetProfile=1` 重新加载登记界面。
+- 武器经验：击杀敌人会根据武器贡献累积经验，HUD 右侧会显示三种武器的等级与经验条；每次升级会触发武器增强三选一界面。
+- 武器增强：针对当前使用的武器随机提供 3 个增益（如射程、穿透、DOT 等），可叠加多次；若不满意可选择“放弃本次机会”保留到下次升级。
 - 玩家登录后立即弹出武器选择界面，可从闪电链/火焰喷射/水枪三种武器中挑选开局武器；可随时在游戏中按 1/2/3 切换，当前选择会同步到个人存档。
 
 ## Manual Acceptance Checklist (Completed)
