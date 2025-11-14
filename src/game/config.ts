@@ -1,10 +1,8 @@
 import Phaser from 'phaser'
 
+import { GAME_HEIGHT, GAME_WIDTH } from './constants/dimensions'
 import BootScene from './scenes/BootScene'
 import PlayScene from './scenes/PlayScene'
-
-export const GAME_WIDTH = 960
-export const GAME_HEIGHT = 540
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -28,4 +26,5 @@ const config: Phaser.Types.Core.GameConfig = {
 }
 
 export default config
+export { GAME_WIDTH, GAME_HEIGHT } from './constants/dimensions'
 

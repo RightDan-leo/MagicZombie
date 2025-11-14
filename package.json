@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "server:dev": "cross-env NODE_ENV=development ts-node --project tsconfig.server.json --esm server/index.ts",
+    "server:build": "tsc -p tsconfig.server.json",
+    "server:start": "node dist/server/index.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
@@ -14,6 +17,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.5",
+    "@types/express-session": "^1.18.2",
     "@types/jest": "^29.5.12",
     "@types/node": "^24.10.0",
     "cross-env": "^7.0.3",
@@ -24,7 +30,12 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "firebase": "^12.5.0",
-    "phaser": "^3.90.0"
+    "phaser": "^3.90.0",
+    "zod": "^4.1.12"
   }
 }

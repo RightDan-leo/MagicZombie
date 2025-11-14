@@ -57,6 +57,7 @@
 ### 1.6 未来扩展 Hook
 - 可在 `WeaponDefinition` 中追加 `element`, `statusEffects`, `cooldownOverride` 等字段；添加前需更新本节表格与 `WeaponDefinitions` 消耗点。
 - 若需要多段攻击或蓄力，可在 spec 中定义新的攻击状态机并在 PlayScene 中实现。
+- **测试同步开关**：将环境变量 `VITE_ENABLE_WEAPON_LEVEL_SYNC` 设为 `true` 时，可在测试环境中启用“任一武器升级即同步其余武器等级”的调试功能；默认值为 `false`，以避免影响主干平衡。
 
 ---
 

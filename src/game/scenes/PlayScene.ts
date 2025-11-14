@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 
-import { GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { GAME_HEIGHT, GAME_WIDTH } from '../constants/dimensions'
 import { EnemyDefinitions } from '../data/enemies'
 import { StageDefinitions } from '../data/stages'
 import { WeaponDefinitions } from '../data/weapons'
@@ -9,6 +9,7 @@ import { applyExperienceInPlace, createInitialPlayerState } from '../logic/playe
 import { getSpawnInterval, pickEnemyId, resolveBatchCount } from '../logic/spawnRules'
 import type { RandomFloatFn, RandomIntFn } from '../logic/spawnRules'
 import { profileManager } from '../../state/profileManager'
+import { telemetryTracker } from '../../services/telemetryTracker'
 import { ensureWeaponSelected } from '../../ui/weaponGate'
 import {
   addWeaponExperience,
@@ -100,6 +101,8 @@ export default class PlayScene extends Phaser.Scene {
   private stageBanner?: Phaser.GameObjects.Text
 
   private stageReady = false
+  private readonly weaponLevelSyncEnabled =
+    import.meta.env?.VITE_ENABLE_WEAPON_LEVEL_SYNC === 'true'
   private weaponProgress: WeaponProgressMap = createInitialWeaponProgress(WEAPON_ORDER)
   private weaponEnhancements: Record<WeaponId, WeaponEnhancementState> = {
     lightningChain: {},
@@ -286,6 +289,17 @@ export default class PlayScene extends Phaser.Scene {
     this.setupAttackTimer()
 
     this.showStageBanner(stage)
+    this.beginTelemetryRun(stage)
+  }
+
+  private beginTelemetryRun(stage: StageDefinition) {
+    const playerId = profileManager.getProfile()?.id ?? null
+    telemetryTracker.beginRun({
+      playerId,
+      stage,
+      selectedWeapon: this.equippedWeapon,
+    })
+    this.publishTelemetrySnapshot()
   }
 
   private scheduleNextSpawn(useBaseDelay = false) {
@@ -724,16 +738,22 @@ export default class PlayScene extends Phaser.Scene {
     })
   }
 
-  private damageEnemy(enemy: EnemySprite, amount: number, sourceWeapon?: WeaponId) {
+  private damageEnemy(enemy: EnemySprite, amount: number, sourceWeapon?: WeaponId): boolean {
+    if (!enemy.active) {
+      return false
+    }
+
     enemy.hp -= amount
     if (enemy.hp <= 0) {
       this.handleEnemyKilled(enemy, sourceWeapon)
+      return true
     } else {
       enemy.setTintFill(0xffffcc)
       this.time.delayedCall(80, () => {
         enemy.clearTint()
       })
     }
+    return false
   }
 
   private handleEnemyKilled(enemy: EnemySprite, sourceWeapon?: WeaponId) {
@@ -741,6 +761,7 @@ export default class PlayScene extends Phaser.Scene {
     this.addScore(definition.score)
     this.addExperience(definition.experience)
     this.addWeaponExperienceFromKill(sourceWeapon ?? this.equippedWeapon, enemy.enemyId)
+    telemetryTracker.recordKill(enemy.enemyId)
 
     enemy.disableBody(true, true)
     enemy.destroy()
@@ -765,6 +786,35 @@ export default class PlayScene extends Phaser.Scene {
     const levels = addWeaponExperience(this.weaponProgress, weaponId, gain)
     if (levels > 0) {
       this.enqueueWeaponEnhancements(weaponId, levels)
+      this.syncWeaponLevelsFrom(weaponId)
+    }
+  }
+
+  private syncWeaponLevelsFrom(sourceWeaponId: WeaponId) {
+    if (!this.weaponLevelSyncEnabled) {
+      return
+    }
+    const source = this.weaponProgress[sourceWeaponId]
+    if (!source) {
+      return
+    }
+
+    for (const weaponId of WEAPON_ORDER) {
+      if (weaponId === sourceWeaponId) {
+        continue
+      }
+      const target = this.weaponProgress[weaponId]
+      if (!target) {
+        continue
+      }
+      const previousLevel = target.level
+      if (previousLevel >= source.level) {
+        continue
+      }
+      const gainedLevels = source.level - previousLevel
+      target.level = source.level
+      target.exp = source.exp
+      this.enqueueWeaponEnhancements(weaponId, gainedLevels)
     }
   }
 
@@ -942,6 +992,8 @@ export default class PlayScene extends Phaser.Scene {
     this.freezeEnemies()
     this.resetWeaponSystems()
 
+    this.publishTelemetrySnapshot()
+    telemetryTracker.markFailed()
     this.showOverlayMessage('你阵亡了', '按 R 重新开始当前关卡')
   }
 
@@ -952,6 +1004,8 @@ export default class PlayScene extends Phaser.Scene {
     this.attackTimer?.remove(false)
     this.attackTimer = undefined
     this.freezeEnemies()
+    this.publishTelemetrySnapshot()
+    telemetryTracker.markCleared()
     this.showOverlayMessage(`关卡 ${this.stage.id} 完成`, '按 N 进入下一关')
   }
 
@@ -1045,6 +1099,9 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   private switchWeapon(id: WeaponId) {
+    if (this.enhancementOverlayActive) {
+      return
+    }
     if (this.equippedWeapon === id) {
       return
     }
@@ -1094,10 +1151,10 @@ export default class PlayScene extends Phaser.Scene {
 
     recentHits?.add(enemy)
 
-    this.damageEnemy(enemy, projectile.damage, projectile.weaponId)
+    const killed = this.damageEnemy(enemy, projectile.damage, projectile.weaponId)
 
     const rippleStacks = projectile.getData('rippleStacks') as number | undefined
-    if (rippleStacks && rippleStacks > 0) {
+    if (!killed && rippleStacks && rippleStacks > 0) {
       this.damageEnemy(enemy, projectile.damage * 0.15 * rippleStacks, 'waterCannon')
     }
 
@@ -1319,6 +1376,8 @@ export default class PlayScene extends Phaser.Scene {
       score: this.score,
       playerState: this.playerState,
     })
+
+    this.publishTelemetrySnapshot()
   }
 
   private buildWeaponProgressLines() {
@@ -1345,5 +1404,16 @@ export default class PlayScene extends Phaser.Scene {
       hudText: this.hudText?.text ?? '',
       projectiles: debugWindow.__MAGICZOMBIE_DEBUG__?.projectiles ?? [],
     }
+  }
+
+  private publishTelemetrySnapshot() {
+    telemetryTracker.updateSnapshot({
+      score: this.score,
+      elapsedSeconds: this.elapsedTime,
+      playerState: this.playerState,
+      weaponProgress: this.weaponProgress,
+      weaponEnhancements: this.weaponEnhancements,
+      selectedWeapon: this.equippedWeapon,
+    })
   }
 }

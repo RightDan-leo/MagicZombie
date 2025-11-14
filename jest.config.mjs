@@ -18,6 +18,7 @@ const config = {
     ],
   },
   moduleNameMapper: {
+    '^phaser$': '<rootDir>/tests/mocks/phaser.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/e2e/'],

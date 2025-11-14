@@ -7,6 +7,8 @@ A Phaser-based game project. This repository includes gameplay logic, spawn rule
 - Dev server: `npm run dev`
 - Build: `npm run build`
 - Preview build: `npx vite preview --port 4173`
+- Telemetry server (dev): `npm run server:dev`
+- Telemetry server (build): `npm run server:build` then `npm run server:start`
 - Unit tests: `npm test`
 - Coverage: `npm run test:coverage`
 - E2E smoke tests:
@@ -57,3 +59,29 @@ A Phaser-based game project. This repository includes gameplay logic, spawn rule
   VITE_BASE_PATH=/MagicZombie/ npm run build
   ```
 - Local preview of hosted path: `npm run preview -- --host 0.0.0.0 --port 4173` then open `http://localhost:4173/MagicZombie/`.
+
+## Telemetry & Admin Dashboard
+
+鏁版嵁鍙戝竷鍛婄鐞嗗彲閫夋嫨鍦╨locally 鍚姩鏂板鐨勬暟鎹鐞嗙鐞嗕富鍙告湇鍔★紝鍙鐞嗘槑渚е汉鍙互鐧诲綍锛岀綉渚х數鑴戞父鎴忓彲鍚姩鏁版嵁鎶ュ憡銆?
+
+### Setup
+
+1. 灏嗘牴鎹敤閫傜殑瀵瑰簲閲嶇粍 `.env.example` 涓坊鍔犳柊鐜鍙傛暟锛氳繘鍏?`.env` 鍚庨厤缃?`SERVER_PORT`锛?`SESSION_SECRET`锛?`ADMIN_USERNAME`锛?`ADMIN_PASSWORD`锛岃娲诲姩鐨?`TELEMETRY_INGEST_TOKEN` 浠ュ強瀹炵幇瀛樻。鐨?`VITE_TELEMETRY_API_URL` / `VITE_TELEMETRY_TOKEN`銆傝鏃惰兘閲嶅惎閫変腑鐩瀛樻。鐨?`TELEMETRY_DB_PATH`銆?
+2. 鍚姩鏈嶅姟鍣ㄦ墽琛岋細`npm run server:dev`锛岄渶瑕佹墽琛岄噸鎴愬垎鍓茬殑鏈嶅姟鍣ㄧ洰浼欑锛岀敤 `npm run server:build && npm run server:start`銆?
+3. 閫氳繃 `http://localhost:5050/admin` 鐧诲綍锛岀户缁強鍔ㄥ崟鐨勬暟鎹細鍦ㄦ瘡寮€鑷磋⒓绾﹂噺鍏叅鏇存柊銆?
+
+### Data capture
+
+- 鐜╁ ID / 鍗囧悕 / 浠峰€?鎬敮鎸佹墜鏈虹偣鍑讹紝鍚屾椂璁板綍褰撳墠閫夋嫨鐨勬鍣ㄩ€夋嫨銆?
+- 鍗囩骇杩涘害锛氭瘮渚嬪叏姝︿釜妯″潡鐨勯噾搴︺€佹瘮杈冨畬鎴愯兘鑳藉強绗﹀悎鍑哄彴鍒嗙被鍖栥€備綅鏈虹殑鎺ユ敹銆?
+- 鏃堕棿鍜岃皟楠岄檮浣撱€佹瘮鍗冪洿鎺ュ懡鍚嶇殑鑷虫в寤虹珯锛屾敮鎸佹悳绱㈢洿鏂版寔鐢ㄤ細鍙嶄綔鐮达紙鍚屼箟 Progress Log锛?
+- 鍗囩骇涓棬鐨勬爣璇嗕綔鐢ㄦ暟鎹富鐞嗙鐞嗭紝钂欐槸鍙樻崲鍚庤兘澶熻捣鐢熺墿鍡嗗姏鐨勬暟鎹笌鍔ㄦ€佹爣鍑嗙洰缂??銆?
+
+### Dashboard
+
+- **Player overview**: 鎺掑簭鏃堕挓鏃ユ湡鍜宲ast seen锛岃鎸佷縺娆＄敤瀵规鑰屾敮鎸佷腑鏂囩偣鍑讹紝鎰忓緱鍒濆淇℃伅銆?
+- **Runs table**: 鏍规嵁鎴樺眬鏈€鏂板姞鍏ヨ€佺牬鐪嬩笌鎯呭喌鎺掑簭锛岃嚜鍔ㄨ浆鍙戙€?
+- **Detail card**: 鑾峰緱鐢熸椿淇℃伅锛孖P/Level/Exp銆佷笁绉嶆鍣ㄧ殑绛夌骇鍗犵敤閫夋嫨锛屽悓鏃惰鐩樼敵璇蜂簡鎵€鏈夋満鍣ㄥ埌鐜╁競鍦ㄧ殑鏁版嵁銆?
+- **Security**: 鎵€鏈夎闂€夋嫨閮芥槸 session 鐧诲綍淇濇寔锛岀數鑴戞父鎴忓彲鐢辨渶鍚庝竴娆℃湇鍔″伐鍏昏€呴獙璇侊紝鍖呭惈鍚屾椂璁块棶鐨勫姛鑳藉吋瀹圭┖闂村寘鍚瓙鐨勮姹傦紝鑰屽簲鍖栥€?
+
+鏁版嵁鏈簤鍦↗ata/telemetry.db 鎴栫殑涓€瀹氳缃殑璺緞涓瓨鍌ㄣ€傚彲涓嬪亣鎻愬崌锛屼负鍚屼簯鍧囪埗鏁版嵁鍙戞槑鎴愪綋鏁欒偛鎸囩ず锛岃€屽叾浠栧姙鍖洪噴鏀惧疄鐜板伐浣溿€?

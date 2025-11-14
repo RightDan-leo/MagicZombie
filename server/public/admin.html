@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>MagicZombie Telemetry 控制台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <header>
+      <h1>MagicZombie · 数据观测台</h1>
+      <button id="logoutBtn" class="hidden">退出登录</button>
+    </header>
+    <main>
+      <section id="loginPanel" class="panel">
+        <h2>后台登录</h2>
+        <p class="muted">只有掌握密钥的人才能查看玩家实时数据。</p>
+        <form id="loginForm">
+          <label>
+            用户名
+            <input type="text" name="username" autocomplete="username" required />
+          </label>
+          <label>
+            密码
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">进入仪表盘</button>
+          <p class="error hidden" id="loginError"></p>
+        </form>
+      </section>
+
+      <section id="dashboard" class="hidden">
+        <div class="grid">
+          <div class="panel">
+            <div class="header-row">
+              <h2>玩家概览</h2>
+              <span class="muted" id="playersUpdatedAt"></span>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>玩家</th>
+                    <th>最近关卡</th>
+                    <th>状态</th>
+                    <th>总用时</th>
+                    <th>总局数</th>
+                    <th>最后更新</th>
+                  </tr>
+                </thead>
+                <tbody id="playersTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="header-row">
+              <h2>最近战局</h2>
+              <span class="muted" id="runsUpdatedAt"></span>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>玩家</th>
+                    <th>关卡</th>
+                    <th>分数</th>
+                    <th>武器</th>
+                    <th>用时</th>
+                    <th>状态</th>
+                    <th>更新</th>
+                  </tr>
+                </thead>
+                <tbody id="runsTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="header-row">
+            <h2>战局详情</h2>
+            <span class="muted" id="detailLabel">选择一条战局记录查看实时数据</span>
+          </div>
+          <div id="runDetail" class="detail-grid"></div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>
